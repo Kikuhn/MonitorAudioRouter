@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "Monitor Audio Router",
+  "short_name": "MonitorRouter",
+  "description": "현재 Chrome 창이 놓인 모니터에 따라 활성 탭의 오디오 출력 장치를 자동 전환합니다.",
+  "version": "0.2.4",
+  "minimum_chrome_version": "116",
+  "action": {
+    "default_title": "Monitor Audio Router",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "worker.js"
+  },
+  "commands": {
+    "cycle-output-device": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Period"
+      },
+      "description": "활성 탭의 출력 장치를 다음 등록 장치로 전환"
+    }
+  },
+  "permissions": [
+    "activeTab",
+    "contentSettings",
+    "scripting",
+    "storage",
+    "system.display",
+    "tabs",
+    "windows"
+  ],
+  "host_permissions": [
+    "https://*/*"
+  ]
+}

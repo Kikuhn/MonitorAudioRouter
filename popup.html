@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Monitor Audio Router</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main class="popup">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false">
+            <path d="M4 8.5v7h3.8l5.1 4.1V4.4L7.8 8.5H4Z"></path>
+            <path d="M16.1 8.2c1 1 1.6 2.3 1.6 3.8s-.6 2.8-1.6 3.8"></path>
+            <path d="M18.8 5.6A8.8 8.8 0 0 1 21.4 12a8.8 8.8 0 0 1-2.6 6.4"></path>
+          </svg>
+        </span>
+        <div>
+          <h1>Monitor Audio Router</h1>
+          <p id="subtitle">창 위치 기반 출력 전환</p>
+        </div>
+      </div>
+      <label class="switch" title="자동 라우팅 켜기/끄기">
+        <input id="autoToggle" type="checkbox">
+        <span></span>
+      </label>
+    </header>
+
+    <section class="hero-panel">
+      <div>
+        <span id="statusPill" class="pill">상태 확인 중</span>
+        <h2 id="sink">-</h2>
+        <p id="statusDetail">잠시만 기다려 주세요.</p>
+      </div>
+      <div class="hero-actions">
+        <button id="routeNow" type="button">
+          <span class="btn-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false"><path d="M5 12h13"></path><path d="m14 7 5 5-5 5"></path></svg>
+          </span>
+          지금 적용
+        </button>
+        <button id="cycleNow" class="secondary" type="button">
+          <span class="btn-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false"><path d="M17 2.8 21 6.8l-4 4"></path><path d="M3 11V9.8a3 3 0 0 1 3-3h15"></path><path d="m7 21.2-4-4 4-4"></path><path d="M21 13v1.2a3 3 0 0 1-3 3H3"></path></svg>
+          </span>
+          출력 순환
+        </button>
+      </div>
+    </section>
+
+    <section class="panel compact-grid">
+      <div class="metric">
+        <span><i class="label-icon globe" aria-hidden="true"></i>현재 사이트</span>
+        <strong id="origin">-</strong>
+      </div>
+      <div class="metric">
+        <span><i class="label-icon monitor" aria-hidden="true"></i>현재 모니터</span>
+        <strong id="display">-</strong>
+      </div>
+      <div class="metric">
+        <span><i class="label-icon route" aria-hidden="true"></i>선택 규칙</span>
+        <strong id="rule">-</strong>
+      </div>
+      <div class="metric">
+        <span><i class="label-icon shield" aria-hidden="true"></i>적용 상태</span>
+        <strong id="scopeSummary">-</strong>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div>
+          <h2><i class="heading-icon monitor" aria-hidden="true"></i>모니터별 규칙</h2>
+          <p>창 중심점이 들어간 모니터 기준으로 적용됩니다.</p>
+        </div>
+      </div>
+      <div id="displayMap" class="display-map"></div>
+      <div id="displayRules" class="display-rules"></div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div>
+          <h2><i class="heading-icon shield" aria-hidden="true"></i>적용 범위</h2>
+          <p>모니터별 규칙을 어느 사이트에서 쓸지 정합니다.</p>
+        </div>
+      </div>
+      <select id="monitorScopeSelect" class="full-select" aria-label="모니터 자동 적용 범위">
+        <option value="all">모든 사이트에서 적용</option>
+        <option value="sites">등록한 사이트에서만 적용</option>
+      </select>
+      <label class="setting-row">
+        <span>
+          <strong>모니터 이동 우선</strong>
+          <small>창이 다른 모니터로 이동하면 수동 전환보다 모니터 규칙을 적용합니다.</small>
+        </span>
+        <input id="monitorPriorityToggle" type="checkbox">
+      </label>
+      <p id="monitorScopeState" class="hint"></p>
+      <div class="button-grid">
+        <button id="allowMonitorSite" class="secondary" type="button">
+          <span class="btn-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+          </span>
+          현재 사이트 추가
+        </button>
+        <button id="removeMonitorSite" class="secondary" type="button">
+          <span class="btn-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false"><path d="M5 12h14"></path></svg>
+          </span>
+          현재 사이트 삭제
+        </button>
+      </div>
+      <div id="monitorSiteManager" class="site-manager">
+        <div class="site-input-row">
+          <input id="monitorSiteInput" type="text" spellcheck="false" placeholder="https://example.com 또는 https://*.example.com">
+          <button id="addMonitorSitePattern" class="secondary" type="button">
+            <span class="btn-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+            </span>
+            추가
+          </button>
+        </div>
+        <div id="monitorSiteList" class="site-list"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div>
+          <h2><i class="heading-icon speaker" aria-hidden="true"></i>출력 장치</h2>
+          <p id="deviceSummary">등록된 장치를 확인 중입니다.</p>
+        </div>
+        <button id="scanDevices" class="icon-button" type="button" title="장치 자동 스캔" aria-label="장치 자동 스캔">
+          <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.6-4.5"></path><path d="M4 4v5h5"></path><path d="M4 13a8 8 0 0 0 14.6 4.5"></path><path d="M20 20v-5h-5"></path></svg>
+        </button>
+      </div>
+      <div id="deviceList" class="device-list"></div>
+    </section>
+
+    <footer class="footer-actions">
+      <button id="clearOverride" class="secondary" type="button">
+        <span class="btn-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" focusable="false"><path d="M4 7h16"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M6 7l1 13h10l1-13"></path><path d="M9 7V4h6v3"></path></svg>
+        </span>
+        수동 해제
+      </button>
+      <span id="saveState" role="status"></span>
+    </footer>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>
