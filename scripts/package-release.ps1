@@ -34,6 +34,7 @@ $files = @(
     "popup.js",
     "worker.js",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
 )
 

@@ -1,6 +1,6 @@
 {
   "name": "monitor-audio-router",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Chrome extension that routes the active tab audio output based on the focused window monitor.",
   "license": "MIT",
   "scripts": {
