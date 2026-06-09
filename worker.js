@@ -7,6 +7,7 @@ const RULES = MonitorAudioRouterRules;
 const STORAGE_KEY = "monitorAudioRouterSettings";
 const SETTINGS_BACKUP_KEY = "monitorAudioRouterSettingsBackup";
 const STATUS_KEY = "monitorAudioRouterStatus";
+const MANUAL_OVERRIDES_KEY = "monitorAudioRouterManualOverrides";
 const ROUTE_DEBOUNCE_MS = 350;
 const BACKED_UP_SETTING_KEYS = [
   "version",
@@ -102,6 +103,89 @@ async function storageGet(area, key) {
     return result && result[key] || null;
   } catch (_) {
     return null;
+  }
+}
+
+function manualOverrideStorageArea() {
+  return chrome.storage.session || chrome.storage.local;
+}
+
+function normalizeManualOverride(raw) {
+  if (!raw || typeof raw !== "object" || !raw.deviceSelector || typeof raw.deviceSelector !== "object") {
+    return null;
+  }
+
+  return {
+    deviceSelector: raw.deviceSelector,
+    label: String(raw.label || "시스템 기본 장치"),
+    displayId: String(raw.displayId || ""),
+    displayName: String(raw.displayName || ""),
+    origin: String(raw.origin || ""),
+    updatedAt: String(raw.updatedAt || "")
+  };
+}
+
+async function getStoredManualOverrides() {
+  const stored = await storageGet(manualOverrideStorageArea(), MANUAL_OVERRIDES_KEY);
+  return stored && typeof stored === "object" && !Array.isArray(stored) ? stored : {};
+}
+
+async function saveStoredManualOverrides(overrides) {
+  const area = manualOverrideStorageArea();
+  if (!area) {
+    return;
+  }
+  await area.set({ [MANUAL_OVERRIDES_KEY]: overrides });
+}
+
+async function getManualOverride(tabId) {
+  if (!tabId) {
+    return null;
+  }
+
+  const cached = manualTabOverrides.get(tabId);
+  if (cached) {
+    return cached;
+  }
+
+  const overrides = await getStoredManualOverrides();
+  const override = normalizeManualOverride(overrides[String(tabId)]);
+  if (!override) {
+    return null;
+  }
+
+  manualTabOverrides.set(tabId, override);
+  return override;
+}
+
+async function setManualOverride(tabId, override) {
+  if (!tabId) {
+    return;
+  }
+
+  const normalized = normalizeManualOverride(override);
+  if (!normalized) {
+    return;
+  }
+
+  manualTabOverrides.set(tabId, normalized);
+  const overrides = await getStoredManualOverrides();
+  overrides[String(tabId)] = normalized;
+  await saveStoredManualOverrides(overrides);
+}
+
+async function deleteManualOverride(tabId) {
+  if (!tabId) {
+    return;
+  }
+
+  manualTabOverrides.delete(tabId);
+  cycleIndexByTab.delete(tabId);
+  const overrides = await getStoredManualOverrides();
+  const key = String(tabId);
+  if (Object.prototype.hasOwnProperty.call(overrides, key)) {
+    delete overrides[key];
+    await saveStoredManualOverrides(overrides);
   }
 }
 
@@ -710,7 +794,7 @@ async function routeActiveTab(reason) {
   }
 
   const route = RULES.selectRule(settings, display, origin);
-  let override = manualTabOverrides.get(activeTab.id);
+  let override = await getManualOverride(activeTab.id);
 
   if (route.source === "out-of-scope" && !override) {
     return await setOutOfScopeStatus({
@@ -723,8 +807,7 @@ async function routeActiveTab(reason) {
   }
 
   if (shouldMonitorRouteOverrideManual(settings, route, override, display, reason)) {
-    manualTabOverrides.delete(activeTab.id);
-    cycleIndexByTab.delete(activeTab.id);
+    await deleteManualOverride(activeTab.id);
     override = null;
   }
   const effectiveRoute = override ? {
@@ -839,7 +922,7 @@ async function getUiState() {
   }
   const status = await getStatus();
   const route = RULES.selectRule(settings, context.display, context.origin);
-  const override = context.activeTab ? manualTabOverrides.get(context.activeTab.id) : null;
+  const override = context.activeTab ? await getManualOverride(context.activeTab.id) : null;
   const effectiveRoute = override ? {
     source: "shortcut",
     rule: null,
@@ -1129,7 +1212,7 @@ async function cycleActiveTabOutput() {
   const nextLabel = labels[nextIndex];
   const deviceSelector = selectorFromKnownDevice(settings, nextLabel);
 
-  manualTabOverrides.set(activeTab.id, {
+  await setManualOverride(activeTab.id, {
     deviceSelector,
     label: nextLabel || "시스템 기본 장치",
     displayId: context.display && context.display.id || "",
@@ -1146,8 +1229,7 @@ async function cycleActiveTabOutput() {
 async function clearActiveTabOverride() {
   const context = await buildContext(await getSettings());
   if (context.activeTab) {
-    manualTabOverrides.delete(context.activeTab.id);
-    cycleIndexByTab.delete(context.activeTab.id);
+    await deleteManualOverride(context.activeTab.id);
   }
   await routeActiveTab("shortcut-override-cleared");
   return await getUiState();
@@ -1170,8 +1252,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   }
 });
 chrome.tabs.onRemoved.addListener((tabId) => {
-  manualTabOverrides.delete(tabId);
-  cycleIndexByTab.delete(tabId);
+  deleteManualOverride(tabId).catch(() => {});
 });
 
 chrome.commands.onCommand.addListener((command) => {

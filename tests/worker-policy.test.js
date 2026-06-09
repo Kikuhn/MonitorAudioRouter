@@ -18,11 +18,38 @@ assert.ok(
   !cycleBody.includes("isActiveOriginInScope") && !cycleBody.includes("setOutOfScopeStatus"),
   "manual shortcut/popup cycling must bypass registered-site scope"
 );
+assert.ok(
+  cycleBody.includes("await setManualOverride(activeTab.id"),
+  "manual shortcut/popup cycling must persist the override beyond service worker suspension"
+);
 
 const routeBody = functionBody("routeActiveTab");
 assert.ok(
   routeBody.includes('route.source === "out-of-scope" && !override'),
   "automatic monitor routing must skip out-of-scope sites unless a manual override exists"
+);
+assert.ok(
+  routeBody.includes("let override = await getManualOverride(activeTab.id)"),
+  "automatic routing must restore persisted manual overrides before selecting the effective route"
+);
+assert.ok(
+  routeBody.includes("await deleteManualOverride(activeTab.id)"),
+  "monitor movement priority must clear persisted manual overrides when it intentionally takes over"
+);
+
+const clearBody = functionBody("clearActiveTabOverride");
+assert.ok(
+  clearBody.includes("await deleteManualOverride(context.activeTab.id)"),
+  "clearing manual output must remove the persisted override"
+);
+
+assert.ok(
+  source.includes('const MANUAL_OVERRIDES_KEY = "monitorAudioRouterManualOverrides"'),
+  "manual overrides must have a dedicated session storage key"
+);
+assert.ok(
+  source.includes("return chrome.storage.session || chrome.storage.local"),
+  "manual overrides should survive service worker suspension through session storage"
 );
 
 assert.ok(
