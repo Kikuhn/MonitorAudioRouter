@@ -12,9 +12,12 @@
       <div class="brand">
         <span class="brand-mark" aria-hidden="true">
           <svg viewBox="0 0 24 24" focusable="false">
-            <path d="M4 8.5v7h3.8l5.1 4.1V4.4L7.8 8.5H4Z"></path>
-            <path d="M16.1 8.2c1 1 1.6 2.3 1.6 3.8s-.6 2.8-1.6 3.8"></path>
-            <path d="M18.8 5.6A8.8 8.8 0 0 1 21.4 12a8.8 8.8 0 0 1-2.6 6.4"></path>
+            <path fill-rule="evenodd" d="M4 4.5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-10a2 2 0 0 1 2-2Zm3 3v8h10v-8H7Z"></path>
+            <path d="M10.7 18h2.6v2h-2.6Z"></path>
+            <path d="M8.5 20h7v1.6h-7Z"></path>
+            <path d="M9 12.5h1.5V15H9Z"></path>
+            <path d="M11.3 10.4h1.5V15h-1.5Z"></path>
+            <path d="M13.6 8.7h1.5V15h-1.5Z"></path>
           </svg>
         </span>
         <div>
@@ -32,7 +35,7 @@
       <div>
         <span id="statusPill" class="pill">상태 확인 중</span>
         <h2 id="sink">-</h2>
-        <p id="statusDetail">잠시만 기다려 주세요.</p>
+        <p id="statusDetail" role="status" aria-live="polite">잠시만 기다려 주세요.</p>
       </div>
       <div class="hero-actions">
         <button id="routeNow" type="button">
@@ -133,9 +136,11 @@
           <h2><i class="heading-icon speaker" aria-hidden="true"></i>출력 장치</h2>
           <p id="deviceSummary">등록된 장치를 확인 중입니다.</p>
         </div>
-        <button id="scanDevices" class="icon-button" type="button" title="장치 자동 스캔" aria-label="장치 자동 스캔">
-          <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.6-4.5"></path><path d="M4 4v5h5"></path><path d="M4 13a8 8 0 0 0 14.6 4.5"></path><path d="M20 20v-5h-5"></path></svg>
-        </button>
+        <div class="section-actions">
+          <button id="scanDevices" class="icon-button" type="button" title="장치 자동 스캔" aria-label="장치 자동 스캔">
+            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.6-4.5"></path><path d="M4 4v5h5"></path><path d="M4 13a8 8 0 0 0 14.6 4.5"></path><path d="M20 20v-5h-5"></path></svg>
+          </button>
+        </div>
       </div>
       <div id="deviceList" class="device-list"></div>
     </section>

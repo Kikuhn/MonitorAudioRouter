@@ -9,12 +9,12 @@ Monitor Audio Router는 Chrome 창을 어느 모니터에 두었는지에 따라
 Chrome Web Store에 올린 확장이 아니므로, 현재는 GitHub Release ZIP을 내려받아 압축해제 확장으로 설치합니다.
 
 1. [Releases](https://github.com/Kikuhn/MonitorAudioRouter/releases) 페이지를 엽니다.
-2. 최신 버전의 `MonitorAudioRouter-v0.2.5.zip`을 다운로드합니다.
+2. 최신 버전의 `MonitorAudioRouter-v0.2.6.zip`을 다운로드합니다.
 3. ZIP 파일을 원하는 위치에 압축 해제합니다.
 4. Chrome 주소창에 `chrome://extensions`를 입력합니다.
 5. 오른쪽 위 `개발자 모드`를 켭니다.
 6. `압축해제된 확장 프로그램을 로드`를 누릅니다.
-7. 압축을 푼 폴더 안의 `MonitorAudioRouter-v0.2.5` 폴더를 선택합니다.
+7. 압축을 푼 폴더 안의 `MonitorAudioRouter-v0.2.6` 폴더를 선택합니다.
 
 설치 후 Chrome 툴바의 확장 아이콘을 눌러 모니터별 출력 장치를 설정하면 됩니다.
 

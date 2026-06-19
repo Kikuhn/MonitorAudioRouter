@@ -36,6 +36,14 @@ assert.ok(
   routeBody.includes("await deleteManualOverride(activeTab.id)"),
   "monitor movement priority must clear persisted manual overrides when it intentionally takes over"
 );
+assert.ok(
+  routeBody.includes("forgetSelectorOriginDeviceId(selector, origin, response.device)"),
+  "failed AbortError routes should clear the cached per-origin output id before the next retry"
+);
+assert.ok(
+  routeBody.includes("await setManualOverride(activeTab.id, override)"),
+  "successful manual routes should persist refreshed per-origin output ids back to the override"
+);
 
 const clearBody = functionBody("clearActiveTabOverride");
 assert.ok(
@@ -50,6 +58,10 @@ assert.ok(
 assert.ok(
   source.includes("return chrome.storage.session || chrome.storage.local"),
   "manual overrides should survive service worker suspension through session storage"
+);
+assert.ok(
+  source.includes("await syncGrantedOutputWithManualOverride(activeTab.id, context.origin, response.selected)"),
+  "selectAudioOutput grants must refresh the active manual override device id"
 );
 
 assert.ok(

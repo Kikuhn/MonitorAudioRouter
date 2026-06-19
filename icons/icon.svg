@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Monitor Audio Router icon</title>
+  <desc id="desc">A simple blue monitor glyph with three audio level bars.</desc>
+  <path fill="#75a7d8" fill-rule="evenodd" d="M20 22h88a10 10 0 0 1 10 10v58a10 10 0 0 1-10 10H20A10 10 0 0 1 10 90V32a10 10 0 0 1 10-10Zm14 14v50h60V36H34Z"/>
+  <rect x="57" y="98" width="14" height="11" rx="4" fill="#75a7d8"/>
+  <rect x="42" y="107" width="44" height="10" rx="5" fill="#75a7d8"/>
+  <rect x="47" y="66" width="9" height="13" rx="3" fill="#75a7d8"/>
+  <rect x="60" y="55" width="9" height="24" rx="3" fill="#75a7d8"/>
+  <rect x="73" y="45" width="9" height="34" rx="3" fill="#75a7d8"/>
+</svg>

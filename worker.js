@@ -692,13 +692,23 @@ function addKnownDevices(settings, devices) {
   return settings;
 }
 
-function updateSelectedRuleOriginCache(settings, route, origin, deviceInfo) {
-  if (!route || !origin || !deviceInfo || !deviceInfo.deviceId || route.source === "default") {
+function selectorMatchesDeviceLabel(selector, label) {
+  if (!selector || !label) {
     return false;
   }
 
-  const selector = route.rule && route.rule.deviceSelector;
-  if (!selector) {
+  const normalized = RULES.normalizeDeviceLabel(label);
+  return Boolean(normalized && (
+    RULES.normalizeDeviceLabel(selector.labelExact) === normalized ||
+    selector.labelNormalized === normalized
+  ));
+}
+
+function rememberSelectorOriginDeviceId(selector, origin, deviceInfo) {
+  if (!selector || !origin || !deviceInfo || !deviceInfo.deviceId || !deviceInfo.label) {
+    return false;
+  }
+  if (!selectorMatchesDeviceLabel(selector, deviceInfo.label)) {
     return false;
   }
 
@@ -708,6 +718,48 @@ function updateSelectedRuleOriginCache(settings, route, origin, deviceInfo) {
   }
 
   selector.preferredOriginDeviceIds[origin] = deviceInfo.deviceId;
+  return true;
+}
+
+function forgetSelectorOriginDeviceId(selector, origin, deviceInfo) {
+  if (!selector || !origin || !selector.preferredOriginDeviceIds) {
+    return false;
+  }
+  const cachedId = selector.preferredOriginDeviceIds[origin];
+  if (!cachedId || deviceInfo && deviceInfo.deviceId && cachedId !== deviceInfo.deviceId) {
+    return false;
+  }
+
+  delete selector.preferredOriginDeviceIds[origin];
+  return true;
+}
+
+function updateSelectedRuleOriginCache(settings, route, origin, deviceInfo) {
+  if (!route || !origin || !deviceInfo || !deviceInfo.deviceId || route.source === "default") {
+    return false;
+  }
+
+  const selector = route.rule && route.rule.deviceSelector || route.deviceSelector;
+  return rememberSelectorOriginDeviceId(selector, origin, deviceInfo);
+}
+
+function syncGrantedOutputWithRules(settings, origin, deviceInfo) {
+  let changed = false;
+  for (const rule of Array.isArray(settings && settings.displayRules) ? settings.displayRules : []) {
+    if (rememberSelectorOriginDeviceId(rule && rule.deviceSelector, origin, deviceInfo)) {
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+async function syncGrantedOutputWithManualOverride(tabId, origin, deviceInfo) {
+  const override = await getManualOverride(tabId);
+  if (!override || !rememberSelectorOriginDeviceId(override.deviceSelector, origin, deviceInfo)) {
+    return false;
+  }
+
+  await setManualOverride(tabId, override);
   return true;
 }
 
@@ -863,7 +915,22 @@ async function routeActiveTab(reason) {
     });
 
     if (!response || response.ok !== true) {
-      throw new Error(response && response.error || "콘텐츠 스크립트에서 응답을 받지 못했습니다.");
+      const cacheCleared = response &&
+        response.error &&
+        response.error.includes("AbortError") &&
+        forgetSelectorOriginDeviceId(selector, origin, response.device);
+      if (cacheCleared) {
+        if (override) {
+          await setManualOverride(activeTab.id, override);
+        } else {
+          await saveSettings(settings);
+        }
+      }
+
+      const message = response && response.error || "콘텐츠 스크립트에서 응답을 받지 못했습니다.";
+      throw new Error(cacheCleared
+        ? `${message} 저장된 장치 ID 캐시를 지웠습니다. 탭을 새로고침한 뒤 다시 적용하세요.`
+        : message);
     }
 
     let savedAfterCache = false;
@@ -872,7 +939,11 @@ async function routeActiveTab(reason) {
       savedAfterCache = true;
     }
     if (updateSelectedRuleOriginCache(settings, effectiveRoute, origin, response.device)) {
-      savedAfterCache = true;
+      if (override) {
+        await setManualOverride(activeTab.id, override);
+      } else {
+        savedAfterCache = true;
+      }
     }
     if (savedAfterCache) {
       await saveSettings(settings);
@@ -1096,6 +1167,12 @@ async function requestActiveTabOutputPermission() {
     addKnownDevice(settings, response.selected);
   }
   addKnownDevices(settings, response.outputs);
+  const ruleCacheUpdated = response.selected && response.selected.label
+    ? syncGrantedOutputWithRules(settings, context.origin, response.selected)
+    : false;
+  const manualOverrideUpdated = response.selected && response.selected.label
+    ? await syncGrantedOutputWithManualOverride(activeTab.id, context.origin, response.selected)
+    : false;
   await saveSettings(settings);
 
   const uiState = await getUiState();
@@ -1107,7 +1184,9 @@ async function requestActiveTabOutputPermission() {
       count: Array.isArray(response.outputs) ? response.outputs.length : 0,
       labeledCount: Array.isArray(response.outputs) ? response.outputs.filter((item) => item.label).length : 0,
       micGranted: Boolean(response.micGranted),
-      selectAudioOutputAvailable: Boolean(response.selectAudioOutputAvailable)
+      selectAudioOutputAvailable: Boolean(response.selectAudioOutputAvailable),
+      ruleCacheUpdated,
+      manualOverrideUpdated
     }
   };
 }
@@ -1235,13 +1314,16 @@ async function clearActiveTabOverride() {
   return await getUiState();
 }
 
-chrome.runtime.onInstalled.addListener(() => {
+function bootstrapExtensionPermissions(reason) {
   getSettings()
+    .then(ensureExtensionMicrophonePermission)
     .then(saveSettings)
-    .then(() => scheduleRoute("installed"));
-});
+    .catch(() => null)
+    .finally(() => scheduleRoute(reason));
+}
 
-chrome.runtime.onStartup.addListener(() => scheduleRoute("startup"));
+chrome.runtime.onInstalled.addListener(() => bootstrapExtensionPermissions("installed"));
+chrome.runtime.onStartup.addListener(() => bootstrapExtensionPermissions("startup"));
 chrome.windows.onBoundsChanged.addListener(() => scheduleRoute("window-bounds"));
 chrome.windows.onFocusChanged.addListener(() => scheduleRoute("window-focus"));
 chrome.tabs.onActivated.addListener(() => scheduleRoute("tab-activated"));

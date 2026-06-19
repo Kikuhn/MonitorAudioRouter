@@ -43,6 +43,7 @@ foreach ($file in $files) {
 }
 
 Copy-Item -LiteralPath (Join-Path $root "shared") -Destination $stageDir -Recurse
+Copy-Item -LiteralPath (Join-Path $root "icons") -Destination $stageDir -Recurse
 
 if (-not (Test-Path -LiteralPath (Join-Path $stageDir "manifest.json"))) {
     throw "Release package is missing manifest.json."

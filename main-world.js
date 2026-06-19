@@ -273,6 +273,27 @@
     }
   }
 
+  function formatApplyFailure(failure) {
+    const name = failure && failure.name || "Error";
+    const message = failure && failure.message || "";
+    return message ? `${name}: ${message}` : name;
+  }
+
+  function describeApplyFailure(failure, device) {
+    const detail = formatApplyFailure(failure);
+    const label = device && device.label ? ` "${device.label}"` : "";
+
+    if (failure && failure.name === "AbortError") {
+      return `${detail} - Chrome이${label} 출력 장치를 열지 못했습니다. 탭을 새로고침하거나 Chrome을 완전히 다시 시작한 뒤 다시 적용하세요.`;
+    }
+
+    if (failure && failure.name === "NotAllowedError") {
+      return `${detail} - 현재 사이트에서 출력 장치 권한이 허용되지 않았습니다. Chrome 사이트 설정에서 출력 장치 권한을 확인하세요.`;
+    }
+
+    return detail;
+  }
+
   function routeLabelKey(route, systemDefaultLabel = "") {
     if (!route) {
       return "";
@@ -700,9 +721,9 @@
         audioContexts: audioContexts.size,
         mediaApplied: mediaResults.filter((result) => result.ok).length,
         audioContextsApplied: contextResults.filter((result) => result.ok).length,
-        errors: failed.map((result) => `${result.name}: ${result.message}`)
+        errors: failed.map(formatApplyFailure)
       },
-      error: fatal && failed.length ? `${failed[0].name}: ${failed[0].message}` : ""
+      error: fatal && failed.length ? describeApplyFailure(failed[0], device) : ""
     };
   }
 

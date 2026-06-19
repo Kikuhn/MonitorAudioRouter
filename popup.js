@@ -302,6 +302,7 @@ function setStatus(kind, title, detail) {
   el.statusPill.className = `pill ${kind || ""}`.trim();
   el.statusPill.textContent = title;
   el.statusDetail.textContent = detail || "";
+  el.statusDetail.title = detail || "";
 }
 
 function setBusy(message) {
