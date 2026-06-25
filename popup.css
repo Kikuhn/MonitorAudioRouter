@@ -687,6 +687,15 @@ button.secondary:hover {
   align-items: center;
 }
 
+.device-row.missing {
+  border-color: rgb(215 166 74 / 32%);
+}
+
+.device-row.missing .row-icon,
+.device-row.missing .row-title strong {
+  color: var(--warn);
+}
+
 .row-icon {
   display: grid;
   place-items: center;

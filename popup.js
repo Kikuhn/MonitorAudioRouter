@@ -1,5 +1,7 @@
 "use strict";
 
+const RULES = globalThis.MonitorAudioRouterRules;
+
 const el = {
   autoToggle: document.getElementById("autoToggle"),
   subtitle: document.getElementById("subtitle"),
@@ -46,61 +48,15 @@ function text(value, fallback = "-") {
 }
 
 function normalizeDeviceLabel(label) {
-  return String(label || "")
-    .replace(/\s+/g, " ")
-    .replace(/^default\s*[-:]\s*/i, "")
-    .replace(/^communications\s*[-:]\s*/i, "")
-    .replace(/^(?:기본값|기본|시스템 기본 장치|시스템 기본)\s*[-:]\s*/i, "")
-    .replace(/^(?:통신|커뮤니케이션)\s*[-:]\s*/i, "")
-    .replace(/\s+\(default\)$/i, "")
-    .replace(/\s+\(communications\)$/i, "")
-    .replace(/\s+\((?:기본값|기본|시스템 기본 장치|시스템 기본)\)$/i, "")
-    .replace(/\s+\((?:통신|커뮤니케이션)\)$/i, "")
-    .trim()
-    .toLowerCase();
+  return RULES.normalizeDeviceLabel(label);
 }
 
 function canonicalDeviceLabel(label) {
-  return normalizeDeviceLabel(label)
-    .normalize("NFKC")
-    .replace(/[\s()[\]{}<>:;'"`.,/_\\|-]+/g, "");
-}
-
-function cleanDeviceLabel(label) {
-  return String(label || "")
-    .replace(/^default\s*[-:]\s*/i, "")
-    .replace(/^communications\s*[-:]\s*/i, "")
-    .replace(/^(?:기본값|기본|시스템 기본 장치|시스템 기본)\s*[-:]\s*/i, "")
-    .replace(/^(?:통신|커뮤니케이션)\s*[-:]\s*/i, "")
-    .replace(/\s+\(default\)$/i, "")
-    .replace(/\s+\(communications\)$/i, "")
-    .replace(/\s+\((?:기본값|기본|시스템 기본 장치|시스템 기본)\)$/i, "")
-    .replace(/\s+\((?:통신|커뮤니케이션)\)$/i, "")
-    .replace(/\s+/g, " ")
-    .trim();
+  return RULES.canonicalDeviceLabel(label);
 }
 
 function createDeviceSelector(label) {
-  return {
-    labelExact: label || "",
-    labelNormalized: normalizeDeviceLabel(label),
-    preferredOriginDeviceIds: {}
-  };
-}
-
-function rememberSystemDefaultDevice(settings, device) {
-  if (!device || device.kind !== "audiooutput" || device.deviceId !== "default" || !device.label) {
-    return;
-  }
-
-  const label = cleanDeviceLabel(device.label);
-  const normalized = normalizeDeviceLabel(label);
-  if (!label || !normalized) {
-    return;
-  }
-
-  settings.systemDefaultDeviceLabel = label;
-  settings.systemDefaultDeviceLabelNormalized = normalized;
+  return RULES.createDeviceSelector(label);
 }
 
 function iconSvg(kind) {
@@ -309,54 +265,6 @@ function setBusy(message) {
   setStatus("", "처리 중", message || "변경을 적용하고 있습니다.");
 }
 
-function isSkippableOutputDevice(device) {
-  return !device ||
-    device.kind !== "audiooutput" ||
-    !device.deviceId ||
-    device.deviceId === "default" ||
-    device.deviceId === "communications" ||
-    !device.label;
-}
-
-function addKnownDevice(settings, device) {
-  rememberSystemDefaultDevice(settings, device);
-
-  if (isSkippableOutputDevice(device)) {
-    return false;
-  }
-
-  const label = cleanDeviceLabel(device.label);
-  if (!label || label === "시스템 기본 장치") {
-    return false;
-  }
-
-  const normalized = normalizeDeviceLabel(label);
-  const canonical = canonicalDeviceLabel(label);
-  const existing = (settings.knownDevices || []).find((known) =>
-    known.labelNormalized === normalized ||
-    canonicalDeviceLabel(known.label || known.labelNormalized) === canonical
-  );
-  const next = {
-    label,
-    labelNormalized: normalized,
-    extensionDeviceId: device.deviceId || "",
-    lastSeenAt: new Date().toISOString()
-  };
-
-  if (existing) {
-    Object.assign(existing, next);
-    return false;
-  }
-
-  settings.knownDevices = settings.knownDevices || [];
-  settings.knownDevices.push(next);
-  settings.cycleDeviceLabels = settings.cycleDeviceLabels || [];
-  if (!settings.cycleDeviceLabels.includes(label)) {
-    settings.cycleDeviceLabels.push(label);
-  }
-  return true;
-}
-
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -378,7 +286,8 @@ function deviceOptions(selectedValue, includeNoRule = true) {
   fragment.append(new Option("시스템 기본 장치", "", false, selectedValue === ""));
   for (const device of state.settings.knownDevices || []) {
     if (device.label) {
-      fragment.append(new Option(device.label, device.label, false, selectedValue === device.label));
+      const suffix = device.available === false ? " (연결 안 됨, 기본값으로 대체)" : "";
+      fragment.append(new Option(`${device.label}${suffix}`, device.label, false, selectedValue === device.label));
     }
   }
   return fragment;
@@ -401,13 +310,15 @@ function renderDevices(settings) {
 
   for (const device of devices) {
     const row = document.createElement("div");
-    row.className = "device-row";
+    const missing = device.available === false;
+    row.className = missing ? "device-row missing" : "device-row";
     const title = document.createElement("div");
     title.className = "row-title";
     const name = document.createElement("strong");
     const meta = document.createElement("span");
     name.textContent = device.label;
-    meta.textContent = device.lastSeenAt ? `마지막 확인 ${new Date(device.lastSeenAt).toLocaleString()}` : "등록됨";
+    const stateText = missing ? "연결 안 됨" : "연결됨";
+    meta.textContent = device.lastSeenAt ? `${stateText} · 마지막 확인 ${new Date(device.lastSeenAt).toLocaleString()}` : stateText;
     title.append(name, meta);
     row.append(rowIcon("speaker"), title);
     el.deviceList.append(row);
@@ -653,7 +564,7 @@ function render(nextState) {
     setStatus("", "대기", "아직 라우팅 결과가 없습니다.");
   } else if (status.result === "ok") {
     const count = status.apply ? `${status.apply.mediaElements} media / ${status.apply.audioContexts} context` : "적용됨";
-    setStatus("ok", "적용됨", `${status.sinkLabel || "선택 장치"} · ${count}`);
+    setStatus(status.error ? "warn" : "ok", status.error ? "기본 장치 적용" : "적용됨", status.error || `${status.sinkLabel || "선택 장치"} · ${count}`);
   } else if (status.result === "skipped") {
     setStatus("warn", "건너뜀", status.error || "현재 탭에는 적용하지 않았습니다.");
   } else if (status.result === "disabled") {
@@ -695,26 +606,12 @@ async function scanDevices(options = {}) {
 
     const settings = clone(state.settings || {});
     const devices = await navigator.mediaDevices.enumerateDevices();
-    let outputs = 0;
-    let labeled = 0;
-    let added = 0;
-
-    for (const device of devices) {
-      if (device.kind === "audiooutput") {
-        outputs += 1;
-        if (device.label) {
-          labeled += 1;
-        }
-      }
-      if (addKnownDevice(settings, device)) {
-        added += 1;
-      }
-    }
+    const summary = RULES.reconcileKnownDevices(settings, devices, new Date().toISOString());
 
     state = await send("MAR_SAVE_SETTINGS", { settings });
     render(state);
     if (!options.silent) {
-      setSaveState(`스캔 완료: 출력 ${outputs}, 이름 확인 ${labeled}, 신규 ${added}`);
+      setSaveState(`스캔 완료: 출력 ${summary.outputs}, 이름 확인 ${summary.labeled}, 신규 ${summary.added}`);
     }
   } catch (error) {
     if (!options.silent) {

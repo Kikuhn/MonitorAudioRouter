@@ -285,6 +285,74 @@ test("matches output by contained normalized label", () => {
   assert.strictEqual(device.match, "label-contains");
 });
 
+test("reconciles new and existing known output devices", () => {
+  const settings = {
+    knownDevices: [
+      {
+        label: "Monitor Speaker",
+        labelNormalized: rules.normalizeDeviceLabel("Monitor Speaker"),
+        extensionDeviceId: "old-id",
+        lastSeenAt: "2026-01-01T00:00:00.000Z",
+        available: false,
+        missingSince: "2026-01-02T00:00:00.000Z"
+      }
+    ],
+    cycleDeviceLabels: ["Monitor Speaker"]
+  };
+  const summary = rules.reconcileKnownDevices(settings, [
+    { kind: "audiooutput", deviceId: "default", label: "Default - Monitor Speaker" },
+    { kind: "audiooutput", deviceId: "new-id", label: "Monitor Speaker" },
+    { kind: "audiooutput", deviceId: "headphones", label: "Headphones" }
+  ], "2026-06-25T00:00:00.000Z");
+
+  assert.strictEqual(summary.added, 1);
+  assert.strictEqual(summary.updated, 1);
+  assert.strictEqual(settings.knownDevices[0].extensionDeviceId, "new-id");
+  assert.strictEqual(settings.knownDevices[0].available, true);
+  assert.strictEqual(settings.knownDevices[0].missingSince, "");
+  assert.ok(settings.cycleDeviceLabels.includes("Headphones"));
+  assert.strictEqual(settings.systemDefaultDeviceLabel, "Monitor Speaker");
+});
+
+test("reconcile marks missing devices only from labeled output snapshots", () => {
+  const settings = {
+    knownDevices: [
+      { label: "Monitor Speaker", labelNormalized: rules.normalizeDeviceLabel("Monitor Speaker") },
+      { label: "Headphones", labelNormalized: rules.normalizeDeviceLabel("Headphones") }
+    ],
+    cycleDeviceLabels: []
+  };
+  const summary = rules.reconcileKnownDevices(settings, [
+    { kind: "audiooutput", deviceId: "monitor", label: "Monitor Speaker" }
+  ], "2026-06-25T00:00:00.000Z");
+
+  assert.strictEqual(summary.missing, 1);
+  assert.strictEqual(settings.knownDevices[1].available, false);
+  assert.strictEqual(settings.knownDevices[1].missingSince, "2026-06-25T00:00:00.000Z");
+
+  const unlabeled = {
+    knownDevices: [
+      { label: "Monitor Speaker", labelNormalized: rules.normalizeDeviceLabel("Monitor Speaker") }
+    ],
+    cycleDeviceLabels: []
+  };
+  rules.reconcileKnownDevices(unlabeled, [
+    { kind: "audiooutput", deviceId: "monitor", label: "" }
+  ], "2026-06-25T00:00:00.000Z");
+  assert.notStrictEqual(unlabeled.knownDevices[0].available, false);
+});
+
+test("missing output selectors can fall back to system default", () => {
+  const selector = rules.createDeviceSelector("Missing Monitor");
+  const device = rules.matchAudioOutputDevice([
+    { kind: "audiooutput", deviceId: "headphones", label: "Headphones" }
+  ], selector, "https://www.youtube.com", { fallbackToDefaultOnMissing: true });
+
+  assert.strictEqual(device.deviceId, "");
+  assert.strictEqual(device.match, "missing-default");
+  assert.strictEqual(device.missingLabel, "Missing Monitor");
+});
+
 test("cycle labels exclude the current default output and its concrete device", () => {
   const labels = rules.getCycleDeviceLabels({
     knownDevices: [

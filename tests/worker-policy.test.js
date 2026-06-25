@@ -41,6 +41,14 @@ assert.ok(
   "failed AbortError routes should clear the cached per-origin output id before the next retry"
 );
 assert.ok(
+  routeBody.includes("response.device.stalePreferredId"),
+  "successful routes should clear stale per-origin output ids reported by the page"
+);
+assert.ok(
+  routeBody.includes('response.device.match === "missing-default"'),
+  "missing output devices should be stored as an ok fallback route instead of an error"
+);
+assert.ok(
   routeBody.includes("await setManualOverride(activeTab.id, override)"),
   "successful manual routes should persist refreshed per-origin output ids back to the override"
 );

@@ -63,6 +63,7 @@ function createHarness() {
   document.readyState = "complete";
   document.documentElement = root;
   document.body = root;
+  document.getElementById = () => null;
   document.querySelectorAll = () => createdMedia;
 
   const context = {
@@ -179,6 +180,32 @@ async function run() {
   });
   assert.strictEqual(apply.ok, true);
   assert.strictEqual(first.sinkId, "monitor-device", "current version routed calls must pass the gate");
+
+  harness.context.navigator.mediaDevices.enumerateDevices = async () => [
+    {
+      kind: "audiooutput",
+      deviceId: "other-device",
+      groupId: "group-2",
+      label: "Other Speaker"
+    }
+  ];
+  const fallback = await harness.request(`MAR_APPLY_REQUEST_${protocol}`, {
+    origin: "https://www.youtube.com",
+    deviceSelector: {
+      labelExact: "Missing Speaker",
+      labelNormalized: "missing speaker",
+      preferredOriginDeviceIds: {
+        "https://www.youtube.com": "stale-device"
+      }
+    },
+    notification: {
+      routeSource: "display"
+    }
+  });
+  assert.strictEqual(fallback.ok, true);
+  assert.strictEqual(fallback.device.match, "missing-default");
+  assert.strictEqual(fallback.device.stalePreferredId, "stale-device");
+  assert.strictEqual(first.sinkId, "", "missing specific devices should fall back to the system default sink");
 
   const disabled = await harness.request(`MAR_DISABLE_REQUEST_${protocol}`, {});
   assert.strictEqual(disabled.ok, true);

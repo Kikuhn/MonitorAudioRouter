@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.2.7
+
+- Added a device registry reconciliation flow so added, removed, and renamed output devices are handled from the shared rule engine.
+- Missing configured output devices now fall back to the system default output at runtime without deleting monitor rules.
+- The popup now marks missing devices and explains when a route is using the default-device fallback.
+- Added regression coverage for device reconciliation, stale per-origin device IDs, and missing-device fallback routing.
+
 ## v0.2.6
 
 - Fixed stale output-device cache recovery so Chrome/Windows `AbortError` failures clear the cached device ID and guide the user to retry cleanly.

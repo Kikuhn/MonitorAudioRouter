@@ -177,7 +177,7 @@
     return devices.filter((device) => device.kind === "audiooutput");
   }
 
-  function matchAudioOutputDevice(devices, selector, origin) {
+  function matchAudioOutputDevice(devices, selector, origin, options = {}) {
     if (isDefaultSelector(selector)) {
       return {
         deviceId: "",
@@ -186,6 +186,7 @@
       };
     }
 
+    let stalePreferredId = "";
     const preferredId = selector.preferredOriginDeviceIds && selector.preferredOriginDeviceIds[origin];
     if (preferredId) {
       const preferred = devices.find((device) => device.deviceId === preferredId);
@@ -196,6 +197,7 @@
           match: "origin-cache"
         };
       }
+      stalePreferredId = preferredId;
     }
 
     if (selector.labelExact) {
@@ -204,7 +206,8 @@
         return {
           deviceId: exact.deviceId,
           label: exact.label,
-          match: "label-exact"
+          match: "label-exact",
+          stalePreferredId
         };
       }
     }
@@ -216,7 +219,8 @@
         return {
           deviceId: normalizedMatch.deviceId,
           label: normalizedMatch.label,
-          match: "label-normalized"
+          match: "label-normalized",
+          stalePreferredId
         };
       }
 
@@ -228,9 +232,20 @@
         return {
           deviceId: containsMatch.deviceId,
           label: containsMatch.label,
-          match: "label-contains"
+          match: "label-contains",
+          stalePreferredId
         };
       }
+    }
+
+    if (options.fallbackToDefaultOnMissing) {
+      return {
+        deviceId: "",
+        label: "시스템 기본 장치",
+        match: "missing-default",
+        missingLabel: selector.labelExact || normalized || "",
+        stalePreferredId
+      };
     }
 
     return null;
@@ -679,7 +694,7 @@
 
     if (!isDefaultSelector(selector)) {
       const outputs = await enumerateAudioOutputs();
-      const matched = matchAudioOutputDevice(outputs, selector, origin);
+      const matched = matchAudioOutputDevice(outputs, selector, origin, { fallbackToDefaultOnMissing: true });
       if (!matched) {
         const labels = outputs.map((output) => output.label || "(label 없음)").join(", ");
         throw new Error(`선택한 출력 장치를 찾지 못했습니다: ${selector.labelExact || selector.labelNormalized}. 감지된 장치: ${labels || "없음"}`);

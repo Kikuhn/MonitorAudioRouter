@@ -642,53 +642,15 @@ async function disableInjectedRoute(tabId) {
 }
 
 function addKnownDevice(settings, device) {
-  rememberSystemDefaultDevice(settings, device);
-
-  if (!device || !device.label) {
-    return settings;
-  }
-  if (device.deviceId === "default" || device.deviceId === "communications") {
-    return settings;
-  }
-
-  const label = cleanDeviceLabel(device.label);
-  if (!label || label === "시스템 기본 장치") {
-    return settings;
-  }
-
-  const normalized = RULES.normalizeDeviceLabel(label);
-  const canonical = RULES.canonicalDeviceLabel(label);
-  const existing = settings.knownDevices.find((known) =>
-    known.labelNormalized === normalized ||
-    RULES.canonicalDeviceLabel(known.label || known.labelNormalized) === canonical
-  );
-  const nextDevice = {
-    label,
-    labelNormalized: normalized,
-    extensionDeviceId: device.deviceId || "",
-    lastSeenAt: new Date().toISOString()
-  };
-
-  if (existing) {
-    Object.assign(existing, nextDevice);
-  } else {
-    settings.knownDevices.push(nextDevice);
-    if (!settings.cycleDeviceLabels.includes(label)) {
-      settings.cycleDeviceLabels.push(label);
-    }
-  }
-
+  const output = device && !device.kind && device.label
+    ? { ...device, kind: "audiooutput" }
+    : device;
+  RULES.reconcileKnownDevices(settings, [output], new Date().toISOString(), { markMissing: false });
   return settings;
 }
 
 function addKnownDevices(settings, devices) {
-  rememberSystemDefaultDevice(settings, devices);
-
-  for (const device of Array.isArray(devices) ? devices : []) {
-    if (device && device.kind === "audiooutput" && device.label) {
-      addKnownDevice(settings, device);
-    }
-  }
+  RULES.reconcileKnownDevices(settings, devices, new Date().toISOString());
   return settings;
 }
 
@@ -938,6 +900,15 @@ async function routeActiveTab(reason) {
       addKnownDevice(settings, response.device);
       savedAfterCache = true;
     }
+    if (response.device && response.device.stalePreferredId && forgetSelectorOriginDeviceId(selector, origin, {
+      deviceId: response.device.stalePreferredId
+    })) {
+      if (override) {
+        await setManualOverride(activeTab.id, override);
+      } else {
+        savedAfterCache = true;
+      }
+    }
     if (updateSelectedRuleOriginCache(settings, effectiveRoute, origin, response.device)) {
       if (override) {
         await setManualOverride(activeTab.id, override);
@@ -960,11 +931,13 @@ async function routeActiveTab(reason) {
       selectedRuleSource: effectiveRoute.source,
       sinkLabel: response.device && response.device.label || getDeviceDisplayLabel(selector),
       sinkDeviceId: response.device && response.device.deviceId || "",
-      sinkIsDefault: Boolean(response.device && response.device.match === "default"),
+      sinkIsDefault: Boolean(response.device && (response.device.match === "default" || response.device.match === "missing-default")),
       result: "ok",
       reason,
       apply: response.apply || null,
-      error: ""
+      error: response.device && response.device.match === "missing-default"
+        ? `선택 장치 "${response.device.missingLabel || getDeviceDisplayLabel(selector)}"를 찾지 못해 시스템 기본 장치로 적용됨`
+        : ""
     });
   } catch (error) {
     return await setStatus({

@@ -30,6 +30,20 @@
       .replace(/[\s()[\]{}<>:;'"`.,/_\\|-]+/g, "");
   }
 
+  function cleanDeviceLabel(label) {
+    return String(label || "")
+      .replace(/^default\s*[-:]\s*/i, "")
+      .replace(/^communications\s*[-:]\s*/i, "")
+      .replace(/^(?:기본값|기본|시스템 기본 장치|시스템 기본)\s*[-:]\s*/i, "")
+      .replace(/^(?:통신|커뮤니케이션)\s*[-:]\s*/i, "")
+      .replace(/\s+\(default\)$/i, "")
+      .replace(/\s+\(communications\)$/i, "")
+      .replace(/\s+\((?:기본값|기본|시스템 기본 장치|시스템 기본)\)$/i, "")
+      .replace(/\s+\((?:통신|커뮤니케이션)\)$/i, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
   function createDeviceSelector(device) {
     const label = typeof device === "string" ? device : device && device.label;
     return {
@@ -41,6 +55,130 @@
 
   function isDefaultSelector(selector) {
     return !selector || (!selector.labelExact && !selector.labelNormalized);
+  }
+
+  function rememberSystemDefaultDevice(settings, devices) {
+    const deviceList = Array.isArray(devices) ? devices : [devices];
+    const defaultDevice = deviceList
+      .find((device) => device && device.kind === "audiooutput" && device.deviceId === "default" && device.label);
+    if (!defaultDevice) {
+      return false;
+    }
+
+    const label = cleanDeviceLabel(defaultDevice.label);
+    const normalized = normalizeDeviceLabel(label);
+    if (!label || !normalized) {
+      return false;
+    }
+
+    const changed = settings.systemDefaultDeviceLabel !== label ||
+      settings.systemDefaultDeviceLabelNormalized !== normalized;
+    settings.systemDefaultDeviceLabel = label;
+    settings.systemDefaultDeviceLabelNormalized = normalized;
+    return changed;
+  }
+
+  function isConcreteOutputDevice(device) {
+    return device &&
+      device.kind === "audiooutput" &&
+      device.deviceId &&
+      device.deviceId !== "default" &&
+      device.deviceId !== "communications" &&
+      device.label;
+  }
+
+  function reconcileKnownDevices(settings, devices, now = new Date().toISOString(), options = {}) {
+    settings.knownDevices = Array.isArray(settings && settings.knownDevices) ? settings.knownDevices : [];
+    settings.cycleDeviceLabels = Array.isArray(settings && settings.cycleDeviceLabels) ? settings.cycleDeviceLabels : [];
+
+    const deviceList = Array.isArray(devices) ? devices : [];
+    const markMissing = options.markMissing !== false;
+    const summary = {
+      outputs: 0,
+      labeled: 0,
+      added: 0,
+      updated: 0,
+      missing: 0,
+      changed: false
+    };
+    const seen = new Set();
+
+    if (rememberSystemDefaultDevice(settings, deviceList)) {
+      summary.changed = true;
+    }
+
+    for (const device of deviceList) {
+      if (device && device.kind === "audiooutput") {
+        summary.outputs += 1;
+        if (device.label) {
+          summary.labeled += 1;
+        }
+      }
+      if (!isConcreteOutputDevice(device)) {
+        continue;
+      }
+
+      const label = cleanDeviceLabel(device.label);
+      if (!label || label === "시스템 기본 장치") {
+        continue;
+      }
+
+      const normalized = normalizeDeviceLabel(label);
+      const canonical = canonicalDeviceLabel(label);
+      if (!canonical) {
+        continue;
+      }
+      seen.add(canonical);
+
+      const existing = settings.knownDevices.find((known) =>
+        known &&
+        (
+          known.labelNormalized === normalized ||
+          canonicalDeviceLabel(known.label || known.labelNormalized) === canonical
+        )
+      );
+      const next = {
+        label,
+        labelNormalized: normalized,
+        extensionDeviceId: device.deviceId || "",
+        lastSeenAt: now,
+        available: true,
+        missingSince: ""
+      };
+
+      if (existing) {
+        const changed = Object.keys(next).some((key) => existing[key] !== next[key]);
+        Object.assign(existing, next);
+        if (changed) {
+          summary.updated += 1;
+          summary.changed = true;
+        }
+      } else {
+        settings.knownDevices.push(next);
+        if (!settings.cycleDeviceLabels.includes(label)) {
+          settings.cycleDeviceLabels.push(label);
+        }
+        summary.added += 1;
+        summary.changed = true;
+      }
+    }
+
+    if (markMissing && summary.labeled > 0) {
+      for (const known of settings.knownDevices) {
+        const canonical = canonicalDeviceLabel(known && (known.label || known.labelNormalized));
+        if (!canonical || seen.has(canonical)) {
+          continue;
+        }
+        if (known.available !== false || !known.missingSince) {
+          known.available = false;
+          known.missingSince = known.missingSince || now;
+          summary.missing += 1;
+          summary.changed = true;
+        }
+      }
+    }
+
+    return summary;
   }
 
   function isRoutableUrl(url) {
@@ -323,7 +461,7 @@
     return result;
   }
 
-  function matchAudioOutputDevice(devices, selector, origin) {
+  function matchAudioOutputDevice(devices, selector, origin, options = {}) {
     const outputDevices = (Array.isArray(devices) ? devices : [])
       .filter((device) => device && device.kind === "audiooutput");
 
@@ -335,6 +473,7 @@
       };
     }
 
+    let stalePreferredId = "";
     const preferredId = selector.preferredOriginDeviceIds && selector.preferredOriginDeviceIds[origin];
     if (preferredId) {
       const preferred = outputDevices.find((device) => device.deviceId === preferredId);
@@ -345,6 +484,7 @@
           match: "origin-cache"
         };
       }
+      stalePreferredId = preferredId;
     }
 
     const exactLabel = selector.labelExact || "";
@@ -354,7 +494,8 @@
         return {
           deviceId: exact.deviceId,
           label: exact.label,
-          match: "label-exact"
+          match: "label-exact",
+          stalePreferredId
         };
       }
     }
@@ -366,7 +507,8 @@
         return {
           deviceId: normalizedMatch.deviceId,
           label: normalizedMatch.label,
-          match: "label-normalized"
+          match: "label-normalized",
+          stalePreferredId
         };
       }
 
@@ -378,9 +520,20 @@
         return {
           deviceId: containsMatch.deviceId,
           label: containsMatch.label,
-          match: "label-contains"
+          match: "label-contains",
+          stalePreferredId
         };
       }
+    }
+
+    if (options.fallbackToDefaultOnMissing) {
+      return {
+        deviceId: "",
+        label: "시스템 기본 장치",
+        match: "missing-default",
+        missingLabel: exactLabel || normalized || "",
+        stalePreferredId
+      };
     }
 
     return null;
@@ -392,8 +545,10 @@
     MONITOR_ROUTING_SCOPE_SITES,
     normalizeDeviceLabel,
     canonicalDeviceLabel,
+    cleanDeviceLabel,
     createDeviceSelector,
     isDefaultSelector,
+    reconcileKnownDevices,
     isRoutableUrl,
     getOrigin,
     contentSettingsPatternFromUrl,

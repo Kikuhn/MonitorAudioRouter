@@ -3,7 +3,7 @@
   "name": "Monitor Audio Router",
   "short_name": "MonitorRouter",
   "description": "현재 Chrome 창이 놓인 모니터에 따라 활성 탭의 오디오 출력 장치를 자동 전환합니다.",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "minimum_chrome_version": "116",
   "action": {
     "default_title": "Monitor Audio Router",
